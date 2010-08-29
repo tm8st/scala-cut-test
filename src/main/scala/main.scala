@@ -2,30 +2,9 @@
    !Scala+Processing 3D 切断テスト
 ------------------------------------------------------------ */
 import processing.core._
-
-//
-case class Vector(x:Float, y:Float, z:Float)
-{
-}
-
-// 
-object Color
-{
-  def Red = Color(255, 0, 0)
-  def Green = Color(0, 255, 0)
-  def Blue = Color(0, 0, 255)
-}
-
-// 
-case class Color(r:Float, g:Float, b:Float)
-{
-}
-
-// 
-case class Vertex(color:Color, pos:Vector)
-{
-}
-
+import tm8st.math._
+import tm8st.mesh._
+  
 /* ------------------------------------------------------------
  !アプレット
  !@memo
@@ -95,8 +74,8 @@ object CutTestApplet extends PApplet
 class Game()
 {
   private val uiFontSize = 14
-  private var numFont: PFont = new PFont
-  private var uiFont: PFont = new PFont
+  private var numFont:PFont = new PFont
+  private var uiFont:PFont = new PFont
  
   private val GameStop = 0
   private val GamePlay = 1
@@ -114,6 +93,30 @@ class Game()
   val width = 640
   val height = 640
 
+  var points:List[Vector3] = List()
+  var meshes:List[Mesh] = List(
+    new Mesh(
+      List(
+        Vertex(Color(255, 255, 255), Vector3(1, 1, 1)),
+        Vertex(Color(0, 255, 255), Vector3(-1, 1, 1)),
+        Vertex(Color(255, 0, 255), Vector3(1, -1, 1)),
+        Vertex(Color(255, 255, 0), Vector3(1, 1, -1)),
+        Vertex(Color(255, 0, 0), Vector3(1, -1, -1)),
+        Vertex(Color(0, 255, 0), Vector3(-1, 1, -1)),
+        Vertex(Color(0, 0, 255), Vector3(-1, -1, 1)),
+        Vertex(Color(0, 0, 0), Vector3(-1, -1, -1)))
+      ,
+      List(
+        1, 0, 2,
+        2, 6, 1))
+      // 1, 0, 2, 6,
+      // 0, 3, 4, 2,
+      // 3, 5, 7, 4,
+      // 5, 1, 6, 7,
+      // 5, 3, 0, 1,
+      // 7, 4, 2, 6
+  )
+  
   // 
   def setup(g: PApplet)
   {
@@ -122,6 +125,8 @@ class Game()
 
     numFont = app.createFont("SanSerif", uiFontSize)
     uiFont = app.createFont("SanSerif", uiFontSize)
+
+    meshes = meshes.map(_.scale(90.f))
 
     app.frameRate(60)
     app.textFont(numFont)
@@ -137,23 +142,25 @@ class Game()
   }
 
   // 
-  def mouseReleased(mouseX:Int, mouseY:Int, mouseButton: Int)
-  {
-    if(state == GameStop || state == GamePlay)
-    {
-      if(mouseButton == PConstants.LEFT)
-      {
-      }
-    }
-  }
-
-  // 
   def mousePressed(mouseX:Int, mouseY:Int, mouseButton: Int)
   {
     if(state == GameStop || state == GamePlay)
     {
       if(mouseButton == PConstants.LEFT)
       {
+        points = Vector3(mouseX, mouseY, 100) :: points
+      }
+    }
+  }
+
+  // 
+  def mouseReleased(mouseX:Int, mouseY:Int, mouseButton: Int)
+  {
+    if(state == GameStop || state == GamePlay)
+    {
+      if(mouseButton == PConstants.LEFT)
+      {
+        points = Vector3(mouseX, mouseY, -100) :: points
       }
     }
   }
@@ -184,11 +191,33 @@ class Game()
       {
 	      case 'r' => reset()
 	      case 'q' => exit()
+	      case 'h' => cut(Plane(0.f, 1.f, 0.f, 0.f))
+	      case 'v' => cut(Plane(1.f, 0.f, 0.f, 0.f))
 	      case _ => ()
       }
     }
   }
-  
+
+  //
+  def cut(p:Plane) =
+  {
+    var newMeshes = List[Mesh]()
+
+    println("cut before----------------------------")
+    for(m <- meshes)
+      println(m.toString)
+    
+    for(m <- meshes)
+      newMeshes = newMeshes ::: Mesh.cutByPlane(m, p)
+
+    meshes = newMeshes
+
+    println("")
+    println("cut after----------------------------")
+    for(m <- meshes)
+      println(m.toString)
+  }
+
   // 
   def draw()
   {
@@ -205,37 +234,43 @@ class Game()
     // 3D rendering
     app.background(188)
 
+    // val mesh = new Mesh(
+    //   List(
+    //     Vertex(Color(255, 255, 255), Vector3(1, 1, 1)),
+    //     Vertex(Color(0, 255, 255), Vector3(-1, 1, 1)),
+    //     Vertex(Color(255, 0, 255), Vector3(1, -1, 1)),
+    //     Vertex(Color(255, 255, 0), Vector3(1, 1, -1)),
+    //     Vertex(Color(255, 0, 0), Vector3(1, -1, -1)),
+    //     Vertex(Color(0, 255, 0), Vector3(-1, 1, -1)),
+    //     Vertex(Color(0, 0, 255), Vector3(-1, -1, 1)),
+    //     Vertex(Color(0, 0, 0), Vector3(-1, -1, -1)))
+    //   ,
+    //   List(
+    //     1, 0, 2,
+    //     2, 6, 1)
+    //     // 1, 0, 2, 6,
+    //     // 0, 3, 4, 2,
+    //     // 3, 5, 7, 4,
+    //     // 5, 1, 6, 7,
+    //     // 5, 3, 0, 1,
+    //     // 7, 4, 2, 6
+    // )
+    
     app.pushMatrix()     
     app.translate(width/2, height/2, -100)
         
-    app.scale(90)
-    app.rotateY(PConstants.PI/6)
-    app.beginShape(PConstants.QUADS)
+    // app.scale(90)
+    app.rotateY(PConstants.PI/12)
+    app.beginShape(PConstants.TRIANGLES)
 
-    val vertex = List(
-      Vertex(Color(255, 255, 255), Vector(1, 1, 1)),
-      Vertex(Color(0, 255, 255), Vector(-1, 1, 1)),
-      Vertex(Color(255, 0, 255), Vector(1, -1, 1)),
-      Vertex(Color(255, 255, 0), Vector(1, 1, -1)),
-      Vertex(Color(255, 0, 0), Vector(1, -1, -1)),
-      Vertex(Color(0, 255, 0), Vector(-1, 1, -1)),
-      Vertex(Color(0, 0, 255), Vector(-1, -1, 1)),
-      Vertex(Color(0, 0, 0), Vector(-1, -1, -1))
-    )
-    val index = List(
-      1, 0, 2, 6,
-      // 0, 3, 4, 2,
-      // 3, 5, 7, 4,
-      // 5, 1, 6, 7,
-      // 5, 3, 0, 1,
-      // 7, 4, 2, 6
-    )
-
-    for(i <- index)
+    for(m <- meshes)
     {
-      val v = vertex(i)
-      app.fill(v.color.r, v.color.g, v.color.b)
-      app.vertex(v.pos.x, v.pos.y, v.pos.z)
+      for(i <- m.indecies)
+      {
+        val v = m.vertecies(i)
+        app.fill(v.color.r, v.color.g, v.color.b)
+        app.vertex(v.pos.x, v.pos.y, v.pos.z)
+      }  
     }
         
     app.endShape()
