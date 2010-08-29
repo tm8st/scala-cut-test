@@ -83,4 +83,29 @@ class TestSuite extends FunSuite
     assert(ps(0).edgeID == 0 || ps(1).edgeID == 0)
     assert(ps(0).edgeID == 2 || ps(1).edgeID == 2)
   }
+  test("""Triangle Normalize""")
+  {
+    val a = Vector3(-1.f, 1.f, 1.f)
+    val b = Vector3(1.f, 1.f, 1.f)
+    val c = Vector3(1.f, -1.f, 1.f)
+
+    val e0 = b-a
+    val e1 = c-b
+
+    println(e1 | e0)
+
+    val e2 = c-a
+    val e3 = b-c
+    println(e2 | e3)
+
+    // assert(p == Plane(0.f, 1.f, 0.f, -1.f))
+  }
+  test("""Or""")
+  {
+    var test = 0
+    if(false || true)
+      test = 1
+    
+    expect(1){ test }
+  }
 }
