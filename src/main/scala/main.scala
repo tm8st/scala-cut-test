@@ -4,12 +4,16 @@
 import processing.core._
 import tm8st.math._
 import tm8st.mesh._
+import tm8st.util._
 
 /* ------------------------------------------------------------
 !
 !@memo 
 ------------------------------------------------------------ */
-class MeshComponent(val mesh:Mesh, var pos:Vector3, var rotate:Vector3)
+object MeshComponent
+{
+}
+class MeshComponent(val mesh:Mesh, var pos:Vector3, var rotation:Vector3, var speed:Vector3)
 {
 }
 /* ------------------------------------------------------------
@@ -114,7 +118,7 @@ class Game()
         Vertex(Color(0, 0, 0), Vector3(-1, -1, -1)))
       ,
       List(
-        1, 0, 2
+        1, 0, 2,
         2, 6, 1
         ))
         
@@ -127,6 +131,11 @@ class Game()
   )
 
   var meshComponents:List[MeshComponent] = List()
+  val planePos = Vector3(width/2, height/2, -100.f)
+  val planes = List(Plane.from(Vector3(0.f, 1.f, 0.f), planePos),
+                    Plane.from(Vector3(1.f, 0.f, 0.f), planePos),
+                    Plane.from(Vector3(1.f, 1.f, 0.f).normal(), planePos),
+                    Plane.from(Vector3(-1.f, 1.f, 0.f).normal(), planePos))
   
   // 
   def setup(g: PApplet)
@@ -140,8 +149,8 @@ class Game()
     meshes = meshes.map(_.scale(90.f))
 
     val meshPos = Vector3(width/2, height/2, -100.f)
-    val meshRotate = Vector3(0.f, 0.f, 0.f)
-    meshComponents = new MeshComponent(meshes.head, meshPos, meshRotate) :: meshComponents
+    val meshRotate = Vector3(0.f, PConstants.PI/16.f, 0.f)
+    meshComponents = new MeshComponent(meshes.head, meshPos, meshRotate, Vector3.Zero) :: meshComponents
 
     app.frameRate(60)
     app.textFont(numFont)
@@ -206,37 +215,45 @@ class Game()
       {
 	      case 'r' => reset()
 	      case 'q' => exit()
-	      case 'h' => cut(Plane(0.f, 1.f, 0.f, 0.f))
-	      case 'v' => cut(Plane(1.f, 0.f, 0.f, 0.f))
+	      case 'h' => cut(planes(0))
+	      case 'v' => cut(planes(1))
+        case 'l' => cut(planes(2))
+        case 'k' => cut(planes(3))
+        // case 'h' => cut(Plane(0.f, 1.f, 0.f, 0.f))
+	      // case 'v' => cut(Plane(1.f, 0.f, 0.f, 0.f))
 	      case _ => ()
       }
+      // val planes = List(Plane.from(Vector3(0.f, 1.f, 0.f), Vector3(0.f, 0.f, 0.f)),
+      //                   Plane.from(Vector3(1.f, 0.f, 0.f), Vector3(0.f, 0.f, 0.f)))
+
     }
   }
 
   //
   def cut(p:Plane) =
   {
-    var newMeshes = List[Mesh]()
-
-    println("cut before----------------------------")
-    for(m <- meshes)
+    var newMeshComponents = List[MeshComponent]()
+    for(mc <- meshComponents)
     {
-      println(m.toString)
-    }
-    
-    for(m <- meshes)
-    {
-      newMeshes = newMeshes ::: Mesh.cutByPlane(m, p)
+      Logger.debug("cut before----------------------------")
+      Logger.debug(mc.toString)
+
+      // plane to mesh local. current only pos.
+      val lp = Plane.from(p.n, mc.pos - p.point)
+
+      val cutResult = Mesh.cutByPlane(mc.mesh, lp)
+
+      if(cutResult.front == null == false)
+        newMeshComponents = new MeshComponent(cutResult.front, mc.pos, mc.rotation, mc.speed + Vector3.Rand(-1.f, 1.f)) :: newMeshComponents
+      if(cutResult.back == null == false)
+        newMeshComponents = new MeshComponent(cutResult.back, mc.pos, mc.rotation, mc.speed + Vector3.Rand(-1.f, 1.f)) :: newMeshComponents
+
+      Logger.debug("")
+      Logger.debug("cut after----------------------------")
+      Logger.debug(mc.toString)
     }
 
-    meshes = newMeshes
-
-    println("")
-    println("cut after----------------------------")
-    for(m <- meshes)
-    {
-      println(m.toString)
-    }
+    meshComponents = newMeshComponents
   }
 
   // 
@@ -251,72 +268,89 @@ class Game()
     app.stroke(0)
     app.fill(0)
 
+    val cameraAt = Vector3(width/2, height/2, -100.f)
+    // val carameRot = Vector3(0.f, PConstants.PI/12.f, 0.f)
+    app.camera(0.0f, 0.0f, 300.0f,
+               cameraAt.x, cameraAt.y, cameraAt.z,
+               // 0.0f, 0.0f, -1.0f,
+               0.0f, 1.0f, 0.0f)
+
     val time = (app.millis() / 1000 ).toString
     app.text(" time: " + time + "sec", 4, 4 + uiFontSize)
 
-    val meshPos = Vector3(width/2, height/2, -100.f)
-    val meshRotate = Vector3(0.f, 0.f, 0.f)
-    // val meshRotate = Vector3(0.f, PConstants.PI/12, 0.f)
-
-    var id = 0
-    for(m <- meshes)
+    // 移動
+    for(m <- meshComponents)
     {
-      // val meshPos = m.pos
-      // val meshRotate = m.rotate
+      m.pos += m.speed
+
+      // 一定の範囲でうごかす
+      val range = 50.f
+      val x = if(m.pos.x-cameraAt.x > range || m.pos.x-cameraAt.x < -range) -m.speed.x else m.speed.x
+      val y = if(m.pos.y-cameraAt.y > range || m.pos.y-cameraAt.y < -range) -m.speed.y else m.speed.y
+      val z = if(m.pos.z-cameraAt.z > range || m.pos.z-cameraAt.z < -range) -m.speed.z else m.speed.z
       
-      for(t <- m.triangles)
+      m.speed = Vector3(x, y, z)
+    }    
+
+    // テストコリジョン
+    val debugView = false
+    var id = 0
+    if(debugView)
+    {
+      for(mc <- meshComponents)
       {
-        val planes = List(Plane.from(Vector3(0.f, 1.f, 0.f), Vector3(0.f, 0.f, 0.f)),
-                        Plane.from(Vector3(1.f, 0.f, 0.f), Vector3(0.f, 0.f, 0.f)))
-        for(plane <- planes)
+        for(t <- mc.mesh.triangles)
         {
-          val (rel, ps) = Collision.calcIntersectPoints(t.v0.pos, t.v1.pos, t.v2.pos, plane)
-        
-          for(p <- ps)
+          for(plane <- planes)
           {
-            app.stroke(0, 0, 0)
-            app.fill(0, 0, 0)
-            app.text(id + ": " + rel + "p=" + p, 4, 20 + uiFontSize + id*24)
-            app.text("  tri=" + t, 4, 20 + uiFontSize + id*24 + 12)
-            
-            app.pushMatrix()
+            val (rel, ps) = Collision.calcIntersectPoints(t.v0.pos, t.v1.pos, t.v2.pos, plane)
 
-            val trans = t.edgePosition(p.edgeID, p.rate)
-            app.translate(meshPos.x + trans.pos.x, meshPos.y + trans.pos.y, meshPos.z + trans.pos.z)
-            app.rotateY(meshRotate.y)
+            for(p <- ps)
+            {
+              app.stroke(0, 0, 0)
+              app.fill(0, 0, 0)
+              app.text(id + ":_" + rel + "p=" +p +"_____" + t.edgePosition(p.edgeID, p.rate), 4, 20 + uiFontSize + id*28)
+              app.text("  tri=" + t.v0.pos + ",_" + t.v1.pos + ",_" + t.v2.pos, 4, 20 + uiFontSize + id*28 + 14)
+        
+              app.pushMatrix()
 
-            // app.stroke(32 * id, 32 * id, 32 * id)
-            app.fill(32 * id, 32 * id, 32 * id)
-            app.sphere(8)
+              val trans = t.edgePosition(p.edgeID, p.rate)
+              app.translate(mc.pos.x + trans.pos.x, mc.pos.y + trans.pos.y, mc.pos.z + trans.pos.z)
+              app.rotateY(mc.rotation.y)
 
-            app.popMatrix()
-            id += 1
+              // app.stroke(32 * id, 32 * id, 32 * id)
+              app.fill(32 * id, 32 * id, 32 * id)
+              app.sphere(8)
+
+              app.popMatrix()
+              id += 1
+            }
           }
-        }
-      }  
+        }  
+      }
     }
 
-    app.stroke(0, 0, 0)
-    
-    for(m <- meshes)
+    // メッシュ描画
+    for(mc <- meshComponents)
     {
-      // val meshPos = m.pos
-      // val meshRotate = m.rotate
+      val meshPos = mc.pos
+      val meshRotate = mc.rotation
 
       app.pushMatrix()
       app.translate(meshPos.x, meshPos.y, meshPos.z)
       app.rotateY(meshRotate.y)
-      app.beginShape(PConstants.TRIANGLES)
 
-      for(i <- m.indecies)
+      app.beginShape(PConstants.TRIANGLES)
+      for(i <- mc.mesh.indecies)
       {
-        val v = m.vertecies(i)
+        val v = mc.mesh.vertecies(i)
+        app.stroke(0, 0, 0)
         app.fill(v.color.r, v.color.g, v.color.b)
         app.vertex(v.pos.x, v.pos.y, v.pos.z)
       }
-
       app.endShape()
-      app.popMatrix()     
+
+      app.popMatrix()
     }
   }
 }
